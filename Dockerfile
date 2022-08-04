@@ -1,6 +1,6 @@
 FROM alpine:3.15 as port-redir
 
-RUN apk add iptables
+RUN apk add iptables bash
 
 WORKDIR /root
 
