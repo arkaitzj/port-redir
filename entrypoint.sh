@@ -7,7 +7,7 @@ function main() {
     if [ -n "${TARGET_IP}" ]; then
         DESTINATION="${TARGET_IP}"
     else
-        DESTINATION=${POD_IP}
+        DESTINATION="$(ip -4 addr show eth0 |  grep -E -o '([0-9]{1,3}\.){3}[0-9]{1,3}')"
     fi
 
     for ports in $@; do
