@@ -1,29 +1,42 @@
 #!/bin/bash
 
+IT="iptables"
 function main() {
 
     set -x 
+    LOCAL_IP="$(ip -4 addr show eth0 |  grep -E -o '([0-9]{1,3}\.){3}[0-9]{1,3}')"
 
     if [ -n "${TARGET_IP}" ]; then
         DESTINATION="${TARGET_IP}"
     else
-        DESTINATION="$(ip -4 addr show eth0 |  grep -E -o '([0-9]{1,3}\.){3}[0-9]{1,3}')"
+        DESTINATION="${LOCAL_IP}"
     fi
 
-    for ports in $@; do
-        echo "$ports"
-        from=$(echo "$ports" | cut -d ':' -f 1)
-        to=$(echo "$ports" | cut -d ':' -f 2)
+    for ports in "$@"; do
+        IFS=":" read -ra tokens <<<"$ports"
+        class="standard"
+        if [ "${#tokens[@]}" -eq 3 ]; then
+            class="${tokens[0]}"
+            tokens=("${tokens[@]:1}")
+        fi
 
-        # For outside connections
-        iptables -t nat -A PREROUTING -p tcp -i eth0 -d ${DESTINATION} --dport $from -j REDIRECT --to-port $to
+        from=${tokens[0]}
+        to=${tokens[1]}
 
-        # For localhost connections, like istio sidecars
-        iptables -t nat -A OUTPUT -p tcp -o lo -d ${DESTINATION} --dport $from -j REDIRECT --to-port $to
+        case "$class" in 
+            standard)
+                # For outside connections
+                ${IT} -t nat -A PREROUTING -p tcp -i eth0 -d ${DESTINATION} --dport $from -j REDIRECT --to-port $to
+                ;;
+            istio)
+                ${IT} -t nat -A OUTPUT -p tcp -o lo -s 127.0.0.6 -d ${DESTINATION} --dport $from -j REDIRECT --to-port $to
+                ;;
+            *)
+                echo "Unknown class: ${class} from ${ports}"
+        esac
     done
 
-    iptables -t nat --list
-
+    ${IT} -t nat --list
 
 }
 
